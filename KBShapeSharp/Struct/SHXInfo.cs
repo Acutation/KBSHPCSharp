@@ -16,5 +16,6 @@ namespace KBShapeSharp.Struct
     {
         public SHPHeaderInfo m_ShxHeaderInfo;
         public List<SHXData> m_SHXDataList;
+        public int nRecords;
     }
 }
