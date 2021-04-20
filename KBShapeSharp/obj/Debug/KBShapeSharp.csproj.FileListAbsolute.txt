@@ -1,0 +1,6 @@
+C:\Users\herok\source\repos\KBSHPCSharp\KBShapeSharp\bin\Debug\KBShapeSharp.dll
+C:\Users\herok\source\repos\KBSHPCSharp\KBShapeSharp\bin\Debug\KBShapeSharp.pdb
+C:\Users\herok\source\repos\KBSHPCSharp\KBShapeSharp\obj\Debug\KBShapeSharp.csprojAssemblyReference.cache
+C:\Users\herok\source\repos\KBSHPCSharp\KBShapeSharp\obj\Debug\KBShapeSharp.csproj.CoreCompileInputs.cache
+C:\Users\herok\source\repos\KBSHPCSharp\KBShapeSharp\obj\Debug\KBShapeSharp.dll
+C:\Users\herok\source\repos\KBSHPCSharp\KBShapeSharp\obj\Debug\KBShapeSharp.pdb

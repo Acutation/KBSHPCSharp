@@ -3,3 +3,9 @@
 ################################################################################
 
 /KBSHPSharp/bin/Debug/netstandard2.0
+/KBSHPSharp/obj/Debug/netstandard2.0
+/KBSHPSharp/obj/Release/netstandard2.0
+/KBSHPSharp/obj
+/nvKBShapeTest/bin/Debug
+/nvKBShapeTest/obj/Debug
+/maptools - 복사본.cs

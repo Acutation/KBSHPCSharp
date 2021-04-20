@@ -1,0 +1,31 @@
+﻿using KBShapeSharp.Type;
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace KBShapeSharp.Struct
+{
+    public class DBFColumnInfo
+    {
+        public string m_Name;
+        public DBFFieldType m_FieldType;
+        public int m_NWidth;
+        public int m_NDecimal;
+
+        public DBFColumnInfo()
+        {
+            m_Name = null;
+            m_FieldType = DBFFieldType.FTInteger;
+            m_NWidth = 0;
+            m_NDecimal = 0;
+        }
+
+        public DBFColumnInfo( string name, DBFFieldType fieldType, int iWidth, int iDecimal )
+        {
+            m_Name = name;
+            m_FieldType = fieldType;
+            m_NWidth = iWidth;
+            m_NDecimal = iDecimal;
+        }
+    }
+}
