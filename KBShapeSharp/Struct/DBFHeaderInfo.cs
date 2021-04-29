@@ -11,6 +11,7 @@ namespace KBShapeSharp.Struct
         public byte[] test1;
         public byte[] test2;
         public int nRecords;
+        public int nFields;
         public short nHeaderLength;
         public short nRecordLength;
         public bool bIncompleteTransaction;

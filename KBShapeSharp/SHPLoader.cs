@@ -76,12 +76,12 @@ namespace KBShapeSharp
                         bRet &= ReadSHPHeader( br, ref m_SHXInfo.m_ShxHeaderInfo );
                         bRet &= ReadSHXBody( br, ref m_SHXInfo );
 
-                        if( !bRet )
+                        if ( !bRet )
                         {
                             m_SHXInfo = null;
                         }
 
-                        Console.WriteLine( m_SHXInfo.ToString() );
+                        Debug.WriteLine( m_SHXInfo.ToString() );
                     }
                 }
             }
@@ -97,7 +97,7 @@ namespace KBShapeSharp
                         m_SHPHeader = new SHPHeaderInfo();
                         ReadSHPHeader( br, ref m_SHPHeader );
 
-                        if( m_SHXInfo is null )
+                        if ( m_SHXInfo is null )
                         {
                             ReadSHPBodyWithoutSHX( br );
                         }
@@ -106,14 +106,14 @@ namespace KBShapeSharp
                             ReadSHPBodyWithSHX( br );
                         }
 
-                        Console.WriteLine( m_SHXInfo.ToString() );
+                        Debug.WriteLine( m_SHXInfo.ToString() );
                     }
                 }
             }
 
             if ( !m_SHPHeader.Equals( m_SHXInfo.m_ShxHeaderInfo ) )
             {
-                Console.WriteLine( "Invalid SHP, SHX" );
+                Debug.WriteLine( "Invalid SHP, SHX" );
                 return false;
             }
 
@@ -124,14 +124,13 @@ namespace KBShapeSharp
                 {
                     using ( BinaryReader br = new BinaryReader( fs ) )
                     {
-                        DBFHeaderInfo dbfHeaderInfo = null;
 
-                        ReadDBFHeader( br, ref dbfHeaderInfo );
-                        //m_SHXInfo = new SHXInfo();
-                        //Constants.ReadSHPheader( br, ref m_SHPHeader );
-                        //Constants.ReadSHPBody( br, ref m_SHXInfo );
+                        if ( true == ReadDBFHeader( br ) )
+                        {
+                            ReadDBFBody( br );
+                        }
 
-                        Console.WriteLine( m_SHXInfo.ToString() );
+                        Debug.WriteLine( m_SHXInfo.ToString() );
                     }
                 }
             }
@@ -139,64 +138,115 @@ namespace KBShapeSharp
 
             return true;
         }
-        public bool ReadDBFHeader( BinaryReader br, ref DBFHeaderInfo dbfHeader )
+
+        #region DBF
+
+        public bool ReadDBFHeader( BinaryReader br )
         {
             try
             {
                 br.BaseStream.Seek( 0, SeekOrigin.Begin );
                 byte[] byteBuffer = br.ReadBytes( DBFHeaderLength );
 
-                dbfHeader = new DBFHeaderInfo();
-                
+                m_DBFHeader = new DBFHeaderInfo();
+
                 // ???
-                dbfHeader.test1 = new byte[ 1 ];
-                dbfHeader.test1[ 0 ] = byteBuffer[ 0 ];
+                m_DBFHeader.test1 = new byte[ 1 ];
+                m_DBFHeader.test1[ 0 ] = byteBuffer[ 0 ];
 
                 // Date of last update
-                dbfHeader.test2 = new byte[ 3 ];
-                Array.Copy( byteBuffer, 1, dbfHeader.test2, 0, 3 );
+                m_DBFHeader.test2 = new byte[ 3 ];
+                Array.Copy( byteBuffer, 1, m_DBFHeader.test2, 0, 3 );
 
                 // Number of records in the database file
-                dbfHeader.nRecords = BitConverter.ToInt32( byteBuffer, 4 );
+                m_DBFHeader.nRecords = BitConverter.ToInt32( byteBuffer, 4 );
 
                 // Number of bytes in the header
-                dbfHeader.nHeaderLength = BitConverter.ToInt16( byteBuffer, 8 );
+                m_DBFHeader.nHeaderLength = BitConverter.ToInt16( byteBuffer, 8 );
 
                 // Number of bytes in the record
-                dbfHeader.nRecordLength = BitConverter.ToInt16( byteBuffer, 10 );
+                m_DBFHeader.nRecordLength = BitConverter.ToInt16( byteBuffer, 10 );
 
                 // Flag indicating incomplete transaction
-                dbfHeader.bIncompleteTransaction = ( 0 != byteBuffer[ 14 ] );
+                m_DBFHeader.bIncompleteTransaction = ( 0 != byteBuffer[ 14 ] );
                 // Encryption flag
-                dbfHeader.bEncryption = ( 0 != byteBuffer[ 15 ] );
+                m_DBFHeader.bEncryption = ( 0 != byteBuffer[ 15 ] );
 
                 // Production .mdx file flag; 1 if there is a production .mdx file, 0 if not
-                dbfHeader.bMDFFileExist = ( 0 != byteBuffer[ 28 ] );
+                m_DBFHeader.bMDFFileExist = ( 0 != byteBuffer[ 28 ] );
                 // Language driver ID
-                dbfHeader.languageDriverID = byteBuffer[ 29 ];
+                m_DBFHeader.languageDriverID = byteBuffer[ 29 ];
 
-                int nFields = dbfHeader.nHeaderLength / 32;
-                dbfHeader.m_FieldInfo = new DBFFieldInfo[ nFields ];
+                m_DBFHeader.nFields = ( m_DBFHeader.nHeaderLength - DBFHeaderLength ) / 32;
+                m_DBFHeader.m_FieldInfo = new DBFFieldInfo[ m_DBFHeader.nFields ];
                 ASCIIEncoding enc = new ASCIIEncoding();
 
-                for ( int idx = 0; idx < nFields; ++idx )
+                byteBuffer = br.ReadBytes( m_DBFHeader.nHeaderLength - DBFHeaderLength );
+
+                for ( int idx = 0; idx < m_DBFHeader.nFields; ++idx )
                 {
 
                     DBFFieldInfo dfi = new DBFFieldInfo();
 
-                    int iOffset = DBFHeaderLength + idx * DBFFieldLength;
-                    byteBuffer = br.ReadBytes( DBFFieldLength );
-                    
+                    int iOffset = idx * DBFFieldLength;
                     // Get Field Name
-                    dfi.m_Name = enc.GetString( byteBuffer, 0, 10 ) ;
+                    dfi.m_Name = enc.GetString( byteBuffer, iOffset, 10 );
+
+                    // Get Field Type
+                    byte fieldType = byteBuffer[ iOffset + 11 ];
+                    string strFieldType = enc.GetString( byteBuffer, iOffset + 11, 1 );
+
+                    // ASCII
+                    switch ( strFieldType )
+                    {
+                    // Date
+                    case "D":
+                        dfi.m_FieldType = DBFFieldType.FTDate;
+                        break;
+                    // Float
+                    case "F":
+                        dfi.m_FieldType = DBFFieldType.FTDouble;
+                        break;
+
+                    // Logical
+                    case "L":
+                        dfi.m_FieldType = DBFFieldType.FTLogical;
+                        break;
+
+                    // Character, Memo
+                    case "C":
+                    case "M":
+                        dfi.m_FieldType = DBFFieldType.FTString;
+                        break;
+
+                    // Numeric
+                    case "N":
+                        dfi.m_FieldType = DBFFieldType.FTInteger;
+                        break;
+
+                    default:
+                        dfi.m_FieldType = DBFFieldType.FTInvalid;
+                        break;
+
+                    }
+
+                    dfi.m_NWidth = byteBuffer[ iOffset + 16 ];
+                    dfi.m_NDecimal = byteBuffer[ iOffset + 17 ];
+
 
 #if DEBUG
-                    Console.WriteLine( "[{0}] m_Name : {1}", idx, dfi.m_Name );
+                    Debug.WriteLine( "Field Index : {0}", idx );
+                    Debug.WriteLine( "m_Name : {1}", idx, dfi.m_Name );
+                    Debug.WriteLine( "m_NWidth : {1}", idx, dfi.m_NWidth );
+                    Debug.WriteLine( "m_NDecimal : {1}", idx, dfi.m_NDecimal );
+                    Debug.WriteLine( "m_FieldType : {1}", idx, dfi.m_FieldType );
 #endif
-                    // Get Field Type
-                    // 210429
+                    // ??? 써본적이없다..
+                    int nWorkAreadID = BitConverter.ToInt16( byteBuffer, iOffset + 18 );
+                    byte example = byteBuffer[ iOffset + 20];
+                    byte mdxFlag = byteBuffer[ iOffset + 31];
 
-                    dbfHeader.m_FieldInfo[ idx ] = dfi;
+                    m_DBFHeader.m_FieldInfo[ idx ] = dfi;
 
                 }
 
@@ -210,6 +260,48 @@ namespace KBShapeSharp
 
             return true;
         }
+
+        private bool ReadDBFBody( BinaryReader br )
+        {
+            try
+            {
+                ASCIIEncoding enc = null;
+                br.BaseStream.Seek( m_DBFHeader.nHeaderLength + 1, SeekOrigin.Begin );
+
+                for ( int iRecord = 0; iRecord < m_DBFHeader.nRecords; ++iRecord )
+                {
+                    byte[] byteBuffer = br.ReadBytes( m_DBFHeader.nRecordLength );
+
+                    int iOffset = 0;
+
+                    for ( int iField = 0; iField < m_DBFHeader.nFields; ++iField )
+                    {
+                        int nWidth = m_DBFHeader.m_FieldInfo[ iField ].m_NWidth;
+
+                        DBFAttribute da = new DBFAttribute( ref m_DBFHeader.m_FieldInfo[ iField ], byteBuffer.Skip( iOffset ).Take( nWidth ).ToArray() );
+
+                        iOffset += nWidth;
+
+#if DEBUG
+                        Debug.WriteLine( "iRecord : {0}, iField : {1}, Data : {2}", iRecord, iField, da.DBFReadAttribute() );
+#endif
+                    }
+
+                }
+
+            }
+            catch ( Exception ex )
+            {
+                Debug.WriteLine( ex.ToString() );
+                return false;
+            }
+
+            return true;
+        }
+
+        #endregion DBF
+
+        #region SHP, SHX
 
         public bool ReadSHPHeader( BinaryReader br, ref SHPHeaderInfo shpHeader )
         {
@@ -256,7 +348,7 @@ namespace KBShapeSharp
         public bool ReadSHXBody( BinaryReader br, ref SHXInfo shxInfo )
         {
             br.BaseStream.Seek( SHPHeaderLength, SeekOrigin.Begin );
-            shxInfo.nRecords = ( (int)br.BaseStream.Length - SHPHeaderLength ) / SHXRecordSize;
+            shxInfo.nRecords = ( ( int )br.BaseStream.Length - SHPHeaderLength ) / SHXRecordSize;
             byte[] byteArr;
 
             shxInfo.m_SHXDataList = new List<SHXData>();
@@ -280,14 +372,14 @@ namespace KBShapeSharp
         }
         public bool ReadSHPBodyWithSHX( BinaryReader br )
         {
-            if( m_SHXInfo is null )
+            if ( m_SHXInfo is null )
             {
                 return false;
             }
 
-            for( int iRecord = 0; iRecord < m_SHXInfo.nRecords; ++iRecord )
+            for ( int iRecord = 0; iRecord < m_SHXInfo.nRecords; ++iRecord )
             {
-                Console.WriteLine( " iRecord : {0}", iRecord );
+                Debug.WriteLine( " iRecord : {0}", iRecord );
                 SHXData shxData = m_SHXInfo.m_SHXDataList[iRecord];
 
                 br.BaseStream.Seek( shxData.iOffset, SeekOrigin.Begin );
@@ -298,6 +390,9 @@ namespace KBShapeSharp
                 int contentLength = BitConverter.ToInt32( Constants.SwapByte( byteArr, 4, 4 ), 0 );
 
                 int shpType = BitConverter.ToInt32( byteArr, 8 );
+
+                bool bZValue = ( 1 == shpType / 10 );
+                int ptsize = ( bZValue ? ( 3 ) : ( 2 ) ) * sizeof( double );
 
                 switch ( ( SHPType )shpType )
                 {
@@ -325,8 +420,8 @@ namespace KBShapeSharp
                         box[ 3 ] = BitConverter.ToDouble( byteArr, 36 );
 
 
-                        Console.WriteLine( " numParts : {0}", numParts );
-                        Console.WriteLine( " numPoints : {0}", numPoints );
+                        Debug.WriteLine( " numParts : {0}", numParts );
+                        Debug.WriteLine( " numPoints : {0}", numPoints );
 
                         // Read Parts
                         int beginOffset = 52;
@@ -342,8 +437,6 @@ namespace KBShapeSharp
                         // Read Points
                         beginOffset += sizeof( int ) * numParts;
 
-                        bool bZValue = ( 1 == shpType / 10 );
-                        int ptsize = ( bZValue ? ( 3 ) : ( 2 ) ) * sizeof( double );
 
                         for ( int pointIdx = 0; pointIdx < numPoints; ++pointIdx )
                         {
@@ -356,7 +449,7 @@ namespace KBShapeSharp
                             iOffset += sizeof( double );
                             pt.y = BitConverter.ToDouble( byteArr, iOffset );
 
-                            if( bZValue )
+                            if ( bZValue )
                             {
                                 iOffset += sizeof( double );
                                 pt.z = BitConverter.ToDouble( byteArr, iOffset );
@@ -378,13 +471,13 @@ namespace KBShapeSharp
             return true;
         }
 
-        public  bool ReadSHPBodyWithoutSHX( BinaryReader br )
+        public bool ReadSHPBodyWithoutSHX( BinaryReader br )
         {
             br.BaseStream.Seek( SHPHeaderLength, SeekOrigin.Begin );
 
             byte[] byteArr;
 
-            while( br.BaseStream.Position < br.BaseStream.Length )
+            while ( br.BaseStream.Position < br.BaseStream.Length )
             {
                 SHXData shxData = new SHXData();
                 byteArr = br.ReadBytes( SHXRecordSize );
@@ -394,10 +487,11 @@ namespace KBShapeSharp
                 shxData.iOffset *= 2;
                 shxData.iLength *= 2;
             }
-            
+
 
             return true;
         }
 
+        #endregion SHP, SHX
     }
 }

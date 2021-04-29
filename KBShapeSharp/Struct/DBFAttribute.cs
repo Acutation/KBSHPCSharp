@@ -1,4 +1,5 @@
 using System;
+using System.Text;
 using KBShapeSharp.Type;
 
 namespace KBShapeSharp.Struct
@@ -9,8 +10,13 @@ namespace KBShapeSharp.Struct
     public class DBFAttribute
     {
         DBFFieldType m_FieldType;
+        int m_nDeciaml;
+        int m_nWidth;
         byte[] m_Data;
+
         public DBFFieldType FieldType { get => m_FieldType; }
+        public int nDecimal { get => m_nDeciaml; }
+        public int nWidth { get => m_nWidth; }
 
         public DBFAttribute()
         {
@@ -18,9 +24,11 @@ namespace KBShapeSharp.Struct
             m_Data = null;
         }
 
-        public DBFAttribute( DBFFieldType fieldType, byte[] data )
+        public DBFAttribute( ref DBFFieldInfo fieldInfo, byte[] data )
         {
-            m_FieldType = fieldType;
+            m_FieldType = fieldInfo.m_FieldType;
+            m_nDeciaml = fieldInfo.m_NDecimal;
+            m_nWidth = fieldInfo.m_NWidth;
             m_Data = data;
         }
 
@@ -36,12 +44,12 @@ namespace KBShapeSharp.Struct
 
         private string DBFReadStringAttribute()
         {
-            return BitConverter.ToString(m_Data, 0);
+            return Encoding.Default.GetString( m_Data );
         }
 
         private DateTime DBFReadDateAttribute()
         {
-            string sDate = BitConverter.ToString(m_Data, 0);
+            string sDate = DBFReadStringAttribute();
 
             try
             {
@@ -54,14 +62,9 @@ namespace KBShapeSharp.Struct
                 return new DateTime(0);
             }
         }
+
         public object DBFReadAttribute()
         {
-            return m_Data;
-        }
-        public object DBFReadAttribute( ref DBFFieldType fieldType )
-        {
-            fieldType = m_FieldType;
-
             switch( m_FieldType )
             {
                 case DBFFieldType.FTDouble:
