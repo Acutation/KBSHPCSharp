@@ -43,8 +43,10 @@
   <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Shape\KBMultiPoints.cs" />
+    <Compile Include="Shape\KBPointWithAttr.cs" />
     <Compile Include="Shape\KBPolygon.cs" />
     <Compile Include="Shape\KBPolyline.cs" />
+    <Compile Include="Shape\KBRect.cs" />
     <Compile Include="Shape\KBShapeBase.cs" />
     <Compile Include="SHPLoader.cs" />
     <Compile Include="Struct\DBFAttribute.cs" />

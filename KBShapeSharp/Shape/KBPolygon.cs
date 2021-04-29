@@ -9,7 +9,8 @@ using System.Threading.Tasks;
 namespace KBShapeSharp.Shape
 {
     public class KBPolygon : KBMultiPoints
-    {
+    {    
+
         public KBPolygon()
         {
             m_ShpType = SHPType.PolygonZ;

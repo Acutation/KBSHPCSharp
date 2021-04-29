@@ -27,15 +27,20 @@ namespace KBShapeSharp
         SHPHeaderInfo m_SHPHeader = null;
         DBFHeaderInfo m_DBFHeader = null;
 
+        SHPType m_SHPType;
+
         public bool m_ValidDBF;
         public bool m_ValidSHP;
         public bool m_ValidSHX;
-        public List<KBShapeBase> m_Shape = null;
+
+        public List<object> m_Shape = null;
 
         public SHPLoader()
         {
             m_ValidDBF = false;
             m_ValidSHP = false;
+            m_ValidSHX = false;
+            m_SHPType = SHPType.NullShape;
         }
 
         public bool Load( string strPath )
@@ -64,6 +69,7 @@ namespace KBShapeSharp
 
             if ( File.Exists( strSHX ) )
             {
+                m_ValidSHX = true;
                 // Read SHX
                 using ( FileStream fs = new FileStream( strSHX, FileMode.Open, FileAccess.Read ) )
                 {
@@ -89,6 +95,7 @@ namespace KBShapeSharp
 
             if ( File.Exists( strSHP ) )
             {
+                m_ValidSHP = true;
                 // Read SHP
                 using ( FileStream fs = new FileStream( strSHP, FileMode.Open, FileAccess.Read ) )
                 {
@@ -96,6 +103,7 @@ namespace KBShapeSharp
                     {
                         m_SHPHeader = new SHPHeaderInfo();
                         ReadSHPHeader( br, ref m_SHPHeader );
+                        m_SHPType = (SHPType)m_SHPHeader.shpType;
 
                         if ( m_SHXInfo is null )
                         {
@@ -119,6 +127,7 @@ namespace KBShapeSharp
 
             if ( File.Exists( strDBF ) )
             {
+                m_ValidDBF = true;
                 // Read DBF
                 using ( FileStream fs = new FileStream( strDBF, FileMode.Open, FileAccess.Read ) )
                 {
@@ -179,7 +188,6 @@ namespace KBShapeSharp
 
                 m_DBFHeader.nFields = ( m_DBFHeader.nHeaderLength - DBFHeaderLength ) / 32;
                 m_DBFHeader.m_FieldInfo = new DBFFieldInfo[ m_DBFHeader.nFields ];
-                ASCIIEncoding enc = new ASCIIEncoding();
 
                 byteBuffer = br.ReadBytes( m_DBFHeader.nHeaderLength - DBFHeaderLength );
 
@@ -190,11 +198,11 @@ namespace KBShapeSharp
 
                     int iOffset = idx * DBFFieldLength;
                     // Get Field Name
-                    dfi.m_Name = enc.GetString( byteBuffer, iOffset, 10 );
+                    dfi.m_Name = Encoding.Default.GetString( byteBuffer, iOffset, 10 );
 
                     // Get Field Type
                     byte fieldType = byteBuffer[ iOffset + 11 ];
-                    string strFieldType = enc.GetString( byteBuffer, iOffset + 11, 1 );
+                    string strFieldType = Encoding.Default.GetString( byteBuffer, iOffset + 11, 1 );
 
                     // ASCII
                     switch ( strFieldType )
@@ -203,6 +211,7 @@ namespace KBShapeSharp
                     case "D":
                         dfi.m_FieldType = DBFFieldType.FTDate;
                         break;
+
                     // Float
                     case "F":
                         dfi.m_FieldType = DBFFieldType.FTDouble;
@@ -265,26 +274,56 @@ namespace KBShapeSharp
         {
             try
             {
-                ASCIIEncoding enc = null;
                 br.BaseStream.Seek( m_DBFHeader.nHeaderLength + 1, SeekOrigin.Begin );
+
+                if( null == m_Shape )
+                {
+                    m_Shape = new List<object>();
+                }
+
+                DBFAttribute[] dbfAttr;
 
                 for ( int iRecord = 0; iRecord < m_DBFHeader.nRecords; ++iRecord )
                 {
                     byte[] byteBuffer = br.ReadBytes( m_DBFHeader.nRecordLength );
 
                     int iOffset = 0;
+                    dbfAttr = new DBFAttribute[ m_DBFHeader.nFields ];
 
                     for ( int iField = 0; iField < m_DBFHeader.nFields; ++iField )
                     {
                         int nWidth = m_DBFHeader.m_FieldInfo[ iField ].m_NWidth;
 
-                        DBFAttribute da = new DBFAttribute( ref m_DBFHeader.m_FieldInfo[ iField ], byteBuffer.Skip( iOffset ).Take( nWidth ).ToArray() );
-
+                        dbfAttr[iField] = new DBFAttribute( ref m_DBFHeader.m_FieldInfo[ iField ], byteBuffer.Skip( iOffset ).Take( nWidth ).ToArray() );
                         iOffset += nWidth;
 
 #if DEBUG
-                        Debug.WriteLine( "iRecord : {0}, iField : {1}, Data : {2}", iRecord, iField, da.DBFReadAttribute() );
+                        Debug.WriteLine( "iRecord : {0}, iField : {1}, Data : {2}", iRecord, iField, dbfAttr[ iField ].DBFReadAttribute() );
 #endif
+                    }
+
+                    switch ( m_SHPType )
+                    {
+                    case SHPType.Point:
+                    case SHPType.PointZ:
+                        ( ( KBPointWithAttr )m_Shape[ iRecord ] ).m_Attribute = dbfAttr;
+                        break;
+
+                    case SHPType.PolyLine:
+                    case SHPType.PolyLineZ:
+                        ( ( KBPolyline )m_Shape[ iRecord ] ).m_Attribute = dbfAttr;
+                        break;
+
+                    case SHPType.Polygon:
+                    case SHPType.PolygonZ:
+                        ( ( KBPolygon )m_Shape[ iRecord ] ).m_Attribute = dbfAttr;
+                        break;
+
+                    case SHPType.NullShape:
+                    default:
+                        m_Shape.Add ( new KBShapeBase().m_Attribute = dbfAttr );
+                        break;
+
                     }
 
                 }
@@ -370,12 +409,67 @@ namespace KBShapeSharp
 
             return true;
         }
+
+        private void AddMultiPoints<T>( byte[] byteArr, ref T pg, bool bZValue ) where T : KBMultiPoints
+        {
+            int ptsize = ( bZValue ? ( 3 ) : ( 2 ) ) * sizeof( double );
+
+            int numParts = BitConverter.ToInt32( byteArr, 44 );
+            int numPoints = BitConverter.ToInt32( byteArr, 48 );
+            pg.m_Parts = new int[ numParts ];
+
+            pg.m_MBB.point_LT.x = BitConverter.ToDouble( byteArr, 12 );
+            pg.m_MBB.point_LT.y = BitConverter.ToDouble( byteArr, 20 );
+            pg.m_MBB.point_RB.x = BitConverter.ToDouble( byteArr, 28 );
+            pg.m_MBB.point_RB.y = BitConverter.ToDouble( byteArr, 36 );
+
+            Debug.WriteLine( " numParts : {0}", numParts );
+            Debug.WriteLine( " numPoints : {0}", numPoints );
+
+            // Read Parts
+            int beginOffset = 52;
+
+            for ( int partIdx = 0; partIdx < numParts; ++partIdx )
+            {
+                int iOffset = beginOffset + partIdx * sizeof( int );
+
+                pg.m_Parts[ partIdx ] = BitConverter.ToInt32( byteArr, iOffset );
+            }
+
+
+            // Read Points
+            beginOffset += sizeof( int ) * numParts;
+
+
+            for ( int pointIdx = 0; pointIdx < numPoints; ++pointIdx )
+            {
+                int iOffset = beginOffset + ( pointIdx * ptsize );
+
+                KBPoint pt = new KBPoint();
+
+                pt.x = BitConverter.ToDouble( byteArr, iOffset );
+
+                iOffset += sizeof( double );
+                pt.y = BitConverter.ToDouble( byteArr, iOffset );
+
+                if ( bZValue )
+                {
+                    iOffset += sizeof( double );
+                    pt.z = BitConverter.ToDouble( byteArr, iOffset );
+                }
+
+                pg.m_Points.Add( pt );
+            }
+        }
+
         public bool ReadSHPBodyWithSHX( BinaryReader br )
         {
             if ( m_SHXInfo is null )
             {
                 return false;
             }
+
+            m_Shape = new List<object>();
 
             for ( int iRecord = 0; iRecord < m_SHXInfo.nRecords; ++iRecord )
             {
@@ -392,72 +486,32 @@ namespace KBShapeSharp
                 int shpType = BitConverter.ToInt32( byteArr, 8 );
 
                 bool bZValue = ( 1 == shpType / 10 );
-                int ptsize = ( bZValue ? ( 3 ) : ( 2 ) ) * sizeof( double );
 
                 switch ( ( SHPType )shpType )
                 {
                 case SHPType.Point:
                 case SHPType.PointZ:
                     {
-
+                        KBPointWithAttr pt = new KBPointWithAttr( );
+                        AddPoint( byteArr, pt, bZValue );
+                        m_Shape.Add( pt );
                     }
                     break;
 
                 case SHPType.PolyLine:
                 case SHPType.PolyLineZ:
+                    {
+                        KBPolyline pl = new KBPolyline( );
+                        AddMultiPoints( byteArr, ref pl, bZValue);
+                        m_Shape.Add( pl );
+                    }
+                    break;
                 case SHPType.Polygon:
                 case SHPType.PolygonZ:
                     {
-                        double[] box = new double[4];
-                        int numParts = BitConverter.ToInt32( byteArr, 44 );
-                        int numPoints = BitConverter.ToInt32( byteArr, 48 );
-                        int[] parts = new int[numParts];
-                        KBPoint[] pts = new KBPoint[numPoints];
-
-                        box[ 0 ] = BitConverter.ToDouble( byteArr, 12 );
-                        box[ 1 ] = BitConverter.ToDouble( byteArr, 20 );
-                        box[ 2 ] = BitConverter.ToDouble( byteArr, 28 );
-                        box[ 3 ] = BitConverter.ToDouble( byteArr, 36 );
-
-
-                        Debug.WriteLine( " numParts : {0}", numParts );
-                        Debug.WriteLine( " numPoints : {0}", numPoints );
-
-                        // Read Parts
-                        int beginOffset = 52;
-
-                        for ( int partIdx = 0; partIdx < numParts; ++partIdx )
-                        {
-                            int iOffset = beginOffset + partIdx * sizeof( int );
-
-                            parts[ partIdx ] = BitConverter.ToInt32( byteArr, iOffset );
-                        }
-
-
-                        // Read Points
-                        beginOffset += sizeof( int ) * numParts;
-
-
-                        for ( int pointIdx = 0; pointIdx < numPoints; ++pointIdx )
-                        {
-                            int iOffset = beginOffset + ( pointIdx * ptsize );
-
-                            KBPoint pt = new KBPoint();
-
-                            pt.x = BitConverter.ToDouble( byteArr, iOffset );
-
-                            iOffset += sizeof( double );
-                            pt.y = BitConverter.ToDouble( byteArr, iOffset );
-
-                            if ( bZValue )
-                            {
-                                iOffset += sizeof( double );
-                                pt.z = BitConverter.ToDouble( byteArr, iOffset );
-                            }
-
-                            pts[ pointIdx ] = pt;
-                        }
-
+                        KBPolygon pg = new KBPolygon( );
+                        AddMultiPoints( byteArr, ref pg, bZValue);
+                        m_Shape.Add( pg );
                     }
                     break;
 
@@ -490,6 +544,11 @@ namespace KBShapeSharp
 
 
             return true;
+        }
+
+        private void AddPoint( byte[] byteArr, KBPointWithAttr pt, bool bZValue )
+        {
+
         }
 
         #endregion SHP, SHX

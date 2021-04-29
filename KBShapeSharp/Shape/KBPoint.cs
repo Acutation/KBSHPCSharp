@@ -1,4 +1,5 @@
-﻿using System;
+﻿using KBShapeSharp.Struct;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -6,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace KBShapeSharp.Shape
 {
-    public class KBPoint 
+    public class KBPoint
     {
         public double x;
         public double y;
@@ -33,4 +34,6 @@ namespace KBShapeSharp.Shape
             z = 0.0;
         }
     }
+
+    
 }
