@@ -48,8 +48,9 @@
     <Compile Include="Shape\KBShapeBase.cs" />
     <Compile Include="SHPLoader.cs" />
     <Compile Include="Struct\DBFAttribute.cs" />
-    <Compile Include="Struct\DBFColumnInfo.cs" />
+    <Compile Include="Struct\DBFFieldInfo.cs" />
     <Compile Include="Shape\KBPoint.cs" />
+    <Compile Include="Struct\DBFHeaderInfo.cs" />
     <Compile Include="Struct\SHPHeaderInfo.cs" />
     <Compile Include="Struct\SHPObject.cs" />
     <Compile Include="Struct\SHXInfo.cs" />

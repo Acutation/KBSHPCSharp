@@ -12,8 +12,9 @@ namespace nvKBShapeTest
         static void Main( string [] args )
         {
             SHPLoader shpLoader = new SHPLoader();
-
+            
             shpLoader.Load( @"D:\SHP\CTPRVN_202101\TL_SCCO_CTPRVN.SHP" );
+            int ret = Console.Read();
         }
     }
 }
