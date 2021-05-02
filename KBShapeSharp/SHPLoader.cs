@@ -43,6 +43,12 @@ namespace KBShapeSharp
             m_SHPType = SHPType.NullShape;
         }
 
+        #region Load Function
+        /// <summary>
+        /// ShapeFile Load 함수
+        /// </summary>
+        /// <param name="strPath"></param>
+        /// <returns></returns>
         public bool Load( string strPath )
         {
             string strSHX, strSHP, strDBF;
@@ -103,7 +109,7 @@ namespace KBShapeSharp
                     {
                         m_SHPHeader = new SHPHeaderInfo();
                         ReadSHPHeader( br, ref m_SHPHeader );
-                        m_SHPType = (SHPType)m_SHPHeader.shpType;
+                        m_SHPType = ( SHPType )m_SHPHeader.shpType;
 
                         if ( m_SHXInfo is null )
                         {
@@ -148,8 +154,140 @@ namespace KBShapeSharp
             return true;
         }
 
-        #region DBF
+        #endregion
 
+        #region Save Function
+        /// <summary>
+        /// 파일 저장 함수 ( SHP, DBF )
+        /// </summary>
+        /// <param name="strPath"></param>
+        /// <returns></returns>
+        public bool Save( string strPath, bool bBackup )
+        {
+            // 디렉토리가 존재하지 않을 경우 넘어감
+            if ( !Directory.Exists( Path.GetDirectoryName( Path.GetFullPath( strPath ) ) ) )
+            {
+                return false;
+            }
+
+            if ( Path.HasExtension( strPath ) )
+            {
+                strPath = Path.GetDirectoryName( strPath ) + "." + Path.GetFileNameWithoutExtension( strPath );
+            }
+
+            string strSHX, strSHP, strDBF;
+
+            if ( m_ValidDBF )
+            {
+                strDBF = strPath + ".DBF";
+                SaveDBF( strDBF, bBackup );
+            }
+
+            if ( m_ValidSHP )
+            {
+                strSHX = strPath + ".SHX";
+                strSHP = strPath + ".SHP";
+
+                SaveSHP( strSHX, strSHP, bBackup );
+            }
+
+
+            return true;
+        }
+
+        private bool BackupFile( string strFullPath )
+        {
+            try
+            {
+                string backupPath = Path.GetDirectoryName( strFullPath ) + @"\BACKUP";
+                Directory.CreateDirectory( backupPath );
+                File.Copy( strFullPath, backupPath + Path.GetFileName( strFullPath ) );
+            }
+            catch( Exception ex )
+            {
+                Debug.WriteLine( ex.ToString() );
+                return false;
+            }
+
+            return true;
+        }
+
+        private void SaveDBF( string strDBF, bool bBackup )
+        {
+            if ( bBackup )
+            {
+                BackupFile( strDBF );
+            }
+
+            FileStream fs = new FileStream( strDBF, FileMode.CreateNew, FileAccess.Write );
+            WriteDBFHeader( ref fs );
+            WriteDBFBody( ref fs );
+        }
+
+        private void SaveSHP( string strSHX, string strSHP, bool bBackup )
+        {
+            if ( bBackup )
+            {
+                BackupFile( strSHP );
+                BackupFile( strSHX );
+            }
+
+            FileStream fs = new FileStream( strSHX, FileMode.CreateNew, FileAccess.Write );
+            WriteSHXHeader( ref fs );
+            WriteSHXBody( ref fs );
+            fs.Close();
+
+            fs = new FileStream( strSHP, FileMode.CreateNew, FileAccess.Write );
+            WriteSHPHeader( ref fs );
+            WriteSHPBody( ref fs );
+            fs.Close();
+
+
+        }
+
+        #endregion
+
+        #region Write Function
+
+        private void WriteDBFHeader( ref FileStream fs )
+        {
+            throw new NotImplementedException();
+        }
+
+        private void WriteDBFBody( ref FileStream fs )
+        {
+            throw new NotImplementedException();
+        }
+
+        private void WriteSHXHeader( ref FileStream fs )
+        {
+            throw new NotImplementedException();
+        }
+
+        private void WriteSHXBody( ref FileStream fs )
+        {
+            throw new NotImplementedException();
+        }
+
+        private void WriteSHPHeader( ref FileStream fs )
+        {
+            throw new NotImplementedException();
+        }
+
+        private void WriteSHPBody( ref FileStream fs )
+        {
+            throw new NotImplementedException();
+        }
+
+        #endregion
+
+        #region Read Function
+
+        /// <summary>
+        /// DBF Header를 읽음
+        /// </summary>
+        /// <param name="br"></param>
+        /// <returns></returns>
         public bool ReadDBFHeader( BinaryReader br )
         {
             try
@@ -269,14 +407,18 @@ namespace KBShapeSharp
 
             return true;
         }
-
+        /// <summary>
+        /// DBF 몸통 부분을 읽음
+        /// </summary>
+        /// <param name="br"></param>
+        /// <returns></returns>
         private bool ReadDBFBody( BinaryReader br )
         {
             try
             {
                 br.BaseStream.Seek( m_DBFHeader.nHeaderLength + 1, SeekOrigin.Begin );
 
-                if( null == m_Shape )
+                if ( null == m_Shape )
                 {
                     m_Shape = new List<object>();
                 }
@@ -294,7 +436,7 @@ namespace KBShapeSharp
                     {
                         int nWidth = m_DBFHeader.m_FieldInfo[ iField ].m_NWidth;
 
-                        dbfAttr[iField] = new DBFAttribute( ref m_DBFHeader.m_FieldInfo[ iField ], byteBuffer.Skip( iOffset ).Take( nWidth ).ToArray() );
+                        dbfAttr[ iField ] = new DBFAttribute( ref m_DBFHeader.m_FieldInfo[ iField ], byteBuffer.Skip( iOffset ).Take( nWidth ).ToArray() );
                         iOffset += nWidth;
 
 #if DEBUG
@@ -321,7 +463,7 @@ namespace KBShapeSharp
 
                     case SHPType.NullShape:
                     default:
-                        m_Shape.Add ( new KBShapeBase().m_Attribute = dbfAttr );
+                        m_Shape.Add( new KBShapeBase().m_Attribute = dbfAttr );
                         break;
 
                     }
@@ -338,10 +480,12 @@ namespace KBShapeSharp
             return true;
         }
 
-        #endregion DBF
-
-        #region SHP, SHX
-
+        /// <summary>
+        /// SHP파일 헤더를 읽음 ( SHX 가능 )
+        /// </summary>
+        /// <param name="br"></param>
+        /// <param name="shpHeader"></param>
+        /// <returns></returns>
         public bool ReadSHPHeader( BinaryReader br, ref SHPHeaderInfo shpHeader )
         {
             try
@@ -383,7 +527,12 @@ namespace KBShapeSharp
 
             return true;
         }
-
+        /// <summary>
+        /// SHX 파일의 몸통부분을 읽음
+        /// </summary>
+        /// <param name="br"></param>
+        /// <param name="shxInfo"></param>
+        /// <returns></returns>
         public bool ReadSHXBody( BinaryReader br, ref SHXInfo shxInfo )
         {
             br.BaseStream.Seek( SHPHeaderLength, SeekOrigin.Begin );
@@ -399,18 +548,117 @@ namespace KBShapeSharp
 
                 byteArr = br.ReadBytes( SHXRecordSize );
                 shxData.iOffset = BitConverter.ToInt32( Constants.SwapByte( byteArr, 0, 4 ), 0 );
-                shxData.iLength = BitConverter.ToInt32( Constants.SwapByte( byteArr, 4, 4 ), 0 );
-
                 shxData.iOffset *= 2;
+
+                shxData.iLength = BitConverter.ToInt32( Constants.SwapByte( byteArr, 4, 4 ), 0 );
                 shxData.iLength *= 2;
+
 
                 shxInfo.m_SHXDataList.Add( shxData );
             }
 
             return true;
         }
+        /// <summary>
+        /// SHX 파일이 있을 때 SHP Read
+        /// </summary>
+        /// <param name="br"></param>
+        /// <returns></returns>
+        public bool ReadSHPBodyWithSHX( BinaryReader br )
+        {
+            if ( m_SHXInfo is null )
+            {
+                return false;
+            }
 
-        private void AddMultiPoints<T>( byte[] byteArr, ref T pg, bool bZValue ) where T : KBMultiPoints
+            m_Shape = new List<object>();
+
+            for ( int iRecord = 0; iRecord < m_SHXInfo.nRecords; ++iRecord )
+            {
+                Debug.WriteLine( " iRecord : {0}", iRecord );
+                SHXData shxData = m_SHXInfo.m_SHXDataList[iRecord];
+
+                br.BaseStream.Seek( shxData.iOffset, SeekOrigin.Begin );
+
+                byte[] byteArr = br.ReadBytes( shxData.iLength + 8 );
+
+                int recNo = BitConverter.ToInt32( Constants.SwapByte( byteArr, 0, 4 ), 0 );
+                int contentLength = BitConverter.ToInt32( Constants.SwapByte( byteArr, 4, 4 ), 0 );
+
+                int shpType = BitConverter.ToInt32( byteArr, 8 );
+
+                bool bZValue = ( 1 == shpType / 10 );
+
+                switch ( ( SHPType )shpType )
+                {
+                case SHPType.Point:
+                case SHPType.PointZ:
+                    {
+                        KBPointWithAttr pt = new KBPointWithAttr( );
+                        AddPoint( byteArr, pt, bZValue );
+                        m_Shape.Add( pt );
+                    }
+                    break;
+
+                case SHPType.PolyLine:
+                case SHPType.PolyLineZ:
+                    {
+                        KBPolyline pl = new KBPolyline( );
+                        AddArc( byteArr, ref pl, bZValue );
+                        m_Shape.Add( pl );
+                    }
+                    break;
+                case SHPType.Polygon:
+                case SHPType.PolygonZ:
+                    {
+                        KBPolygon pg = new KBPolygon( );
+                        AddArc( byteArr, ref pg, bZValue );
+                        m_Shape.Add( pg );
+                    }
+                    break;
+
+                case SHPType.NullShape:
+                default:
+                    return false;
+                }
+            }
+
+
+            return true;
+        }
+        public bool ReadSHPBodyWithoutSHX( BinaryReader br )
+        {
+            br.BaseStream.Seek( SHPHeaderLength, SeekOrigin.Begin );
+
+            byte[] byteArr;
+
+            while ( br.BaseStream.Position < br.BaseStream.Length )
+            {
+                SHXData shxData = new SHXData();
+                byteArr = br.ReadBytes( SHXRecordSize );
+                shxData.iOffset = BitConverter.ToUInt16( Constants.SwapByte( byteArr, 0, 4 ), 0 );
+                shxData.iOffset *= 2;
+
+                shxData.iLength = BitConverter.ToInt32( Constants.SwapByte( byteArr, 4, 4 ), 0 );
+                shxData.iLength *= 2;
+
+            }
+
+
+            return true;
+        }
+
+        #endregion Read Function
+
+        #region Read Shape Function
+        /// <summary>
+        /// Polyline, Polygon 추가 함수 ( 제네릭 함수 )
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="byteArr"></param>
+        /// <param name="pg"></param>
+        /// <param name="bZValue"></param>
+        private void AddArc<T>( byte[] byteArr, ref T pg, bool bZValue ) where T : KBMultiPoints
         {
             int ptsize = ( bZValue ? ( 3 ) : ( 2 ) ) * sizeof( double );
 
@@ -461,96 +709,65 @@ namespace KBShapeSharp
                 pg.m_Points.Add( pt );
             }
         }
-
-        public bool ReadSHPBodyWithSHX( BinaryReader br )
+        /// <summary>
+        /// MultiPoint 추가 함수
+        /// </summary>
+        /// <param name="byteArr"></param>
+        /// <param name="mp"></param>
+        /// <param name="bZValue"></param>
+        private void AddMultiPoints( byte[] byteArr, ref KBMultiPoints mp, bool bZValue )
         {
-            if ( m_SHXInfo is null )
+            int ptsize = ( bZValue ? ( 3 ) : ( 2 ) ) * sizeof( double );
+            int beginOffset = 40;
+
+            mp.m_MBB.point_LT.x = BitConverter.ToDouble( byteArr, 4 );
+            mp.m_MBB.point_LT.y = BitConverter.ToDouble( byteArr, 12 );
+            mp.m_MBB.point_RB.x = BitConverter.ToDouble( byteArr, 20 );
+            mp.m_MBB.point_RB.y = BitConverter.ToDouble( byteArr, 28 );
+
+            int numPoints = BitConverter.ToInt32( byteArr, 36 );
+
+
+            for ( int pointIdx = 0; pointIdx < numPoints; ++pointIdx )
             {
-                return false;
-            }
+                int iOffset = beginOffset + ( pointIdx * ptsize );
 
-            m_Shape = new List<object>();
+                KBPoint pt = new KBPoint();
 
-            for ( int iRecord = 0; iRecord < m_SHXInfo.nRecords; ++iRecord )
-            {
-                Debug.WriteLine( " iRecord : {0}", iRecord );
-                SHXData shxData = m_SHXInfo.m_SHXDataList[iRecord];
+                pt.x = BitConverter.ToDouble( byteArr, iOffset );
 
-                br.BaseStream.Seek( shxData.iOffset, SeekOrigin.Begin );
+                iOffset += sizeof( double );
+                pt.y = BitConverter.ToDouble( byteArr, iOffset );
 
-                byte[] byteArr = br.ReadBytes( shxData.iLength + 8 );
-
-                int recNo = BitConverter.ToInt32( Constants.SwapByte( byteArr, 0, 4 ), 0 );
-                int contentLength = BitConverter.ToInt32( Constants.SwapByte( byteArr, 4, 4 ), 0 );
-
-                int shpType = BitConverter.ToInt32( byteArr, 8 );
-
-                bool bZValue = ( 1 == shpType / 10 );
-
-                switch ( ( SHPType )shpType )
+                if ( bZValue )
                 {
-                case SHPType.Point:
-                case SHPType.PointZ:
-                    {
-                        KBPointWithAttr pt = new KBPointWithAttr( );
-                        AddPoint( byteArr, pt, bZValue );
-                        m_Shape.Add( pt );
-                    }
-                    break;
-
-                case SHPType.PolyLine:
-                case SHPType.PolyLineZ:
-                    {
-                        KBPolyline pl = new KBPolyline( );
-                        AddMultiPoints( byteArr, ref pl, bZValue);
-                        m_Shape.Add( pl );
-                    }
-                    break;
-                case SHPType.Polygon:
-                case SHPType.PolygonZ:
-                    {
-                        KBPolygon pg = new KBPolygon( );
-                        AddMultiPoints( byteArr, ref pg, bZValue);
-                        m_Shape.Add( pg );
-                    }
-                    break;
-
-                case SHPType.NullShape:
-                default:
-                    return false;
+                    iOffset += sizeof( double );
+                    pt.z = BitConverter.ToDouble( byteArr, iOffset );
                 }
+
+                mp.m_Points.Add( pt );
             }
 
-
-            return true;
         }
-
-        public bool ReadSHPBodyWithoutSHX( BinaryReader br )
-        {
-            br.BaseStream.Seek( SHPHeaderLength, SeekOrigin.Begin );
-
-            byte[] byteArr;
-
-            while ( br.BaseStream.Position < br.BaseStream.Length )
-            {
-                SHXData shxData = new SHXData();
-                byteArr = br.ReadBytes( SHXRecordSize );
-                shxData.iOffset = BitConverter.ToUInt16( Constants.SwapByte( byteArr, 0, 4 ), 0 );
-                shxData.iLength = BitConverter.ToInt32( Constants.SwapByte( byteArr, 4, 4 ), 0 );
-
-                shxData.iOffset *= 2;
-                shxData.iLength *= 2;
-            }
-
-
-            return true;
-        }
-
+        /// <summary>
+        /// Point 추가 함수
+        /// </summary>
+        /// <param name="byteArr"></param>
+        /// <param name="pt"></param>
+        /// <param name="bZValue"></param>
         private void AddPoint( byte[] byteArr, KBPointWithAttr pt, bool bZValue )
         {
+            if ( bZValue )
+            {
+                pt.SetXYZ( BitConverter.ToDouble( byteArr, 4 ), BitConverter.ToDouble( byteArr, 12 ), BitConverter.ToDouble( byteArr, 20 ) );
+            }
+            else
+            {
+                pt.SetXY( BitConverter.ToDouble( byteArr, 4 ), BitConverter.ToDouble( byteArr, 12 ) );
+            }
 
         }
 
-        #endregion SHP, SHX
+        #endregion
     }
 }

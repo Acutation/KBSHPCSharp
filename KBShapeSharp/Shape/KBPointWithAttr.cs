@@ -9,7 +9,7 @@ namespace KBShapeSharp.Shape
 {
     public class KBPointWithAttr : KBShapeBase
     {
-        KBPoint pt = new KBPoint();
+        public KBPoint pt = new KBPoint();
 
         public KBPointWithAttr()
         {
@@ -38,6 +38,20 @@ namespace KBShapeSharp.Shape
             pt.y = 0.0;
             pt.z = 0.0;
             m_Attribute = attr;
+        }
+
+        public void SetXY( double x, double y )
+        {
+            pt.x = x;
+            pt.y = y;
+            pt.z = 0.0;
+        }
+
+        public void SetXYZ( double x, double y, double z )
+        {
+            pt.x = x;
+            pt.y = y;
+            pt.z = z;
         }
     }
 }
