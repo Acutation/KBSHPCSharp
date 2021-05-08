@@ -17,6 +17,7 @@ namespace KBShapeSharp.Struct
         public DBFFieldType FieldType { get => m_FieldType; }
         public int nDecimal { get => m_nDeciaml; }
         public int nWidth { get => m_nWidth; }
+        public byte[] Data { get => m_Data; }
 
         public DBFAttribute()
         {

@@ -20,7 +20,12 @@ namespace KBShapeSharp
         public static int SHXRecordSize     = 8;
 
         public static int DBFHeaderLength   = 32;
-        public static int DBFFieldLength   = 32;
+        public static int DBFFieldLength    = 32;
+
+        public static byte DBFHeaderEndCode         = 0x0D;
+        public static byte DBFRecordActiveCode      = 0x20;
+        public static byte DBFRecordDeleteCode      = 0x2A;
+        public static byte DBFEndOfFile             = 0x1A;
 
         //SHX Info;
         SHXInfo m_SHXInfo = null;
@@ -35,6 +40,9 @@ namespace KBShapeSharp
 
         public List<object> m_Shape = null;
 
+        /// <summary>
+        /// 생성자
+        /// </summary>
         public SHPLoader()
         {
             m_ValidDBF = false;
@@ -162,7 +170,7 @@ namespace KBShapeSharp
         /// </summary>
         /// <param name="strPath"></param>
         /// <returns></returns>
-        public bool Save( string strPath, bool bBackup )
+        public bool Save( string strPath, bool bBackup = true )
         {
             // 디렉토리가 존재하지 않을 경우 넘어감
             if ( !Directory.Exists( Path.GetDirectoryName( Path.GetFullPath( strPath ) ) ) )
@@ -172,38 +180,57 @@ namespace KBShapeSharp
 
             if ( Path.HasExtension( strPath ) )
             {
-                strPath = Path.GetDirectoryName( strPath ) + "." + Path.GetFileNameWithoutExtension( strPath );
+                string strName = Path.GetFileNameWithoutExtension( strPath );
+                strPath = Path.GetDirectoryName( strPath );
+                strPath += "\\" + strName;
             }
 
             string strSHX, strSHP, strDBF;
 
             if ( m_ValidDBF )
             {
+#if DEBUG
+                strDBF = strPath + "_.DBF";
+#else
                 strDBF = strPath + ".DBF";
+#endif
                 SaveDBF( strDBF, bBackup );
             }
 
-            if ( m_ValidSHP )
-            {
-                strSHX = strPath + ".SHX";
-                strSHP = strPath + ".SHP";
-
-                SaveSHP( strSHX, strSHP, bBackup );
-            }
+//             if ( m_ValidSHP )
+//             {
+//                 strSHX = strPath + ".SHX";
+//                 strSHP = strPath + ".SHP";
+// 
+//                 SaveSHP( strSHX, strSHP, bBackup );
+//             }
 
 
             return true;
         }
 
-        private bool BackupFile( string strFullPath )
+        /// <summary>
+        /// 저장시 파일 백업을 위한 함수
+        /// </summary>
+        /// <param name="strFullPath"></param>
+        /// <returns></returns>
+        private bool BackupFile( string strFullPath, string backupPath = null )
         {
             try
             {
-                string backupPath = Path.GetDirectoryName( strFullPath ) + @"\BACKUP";
-                Directory.CreateDirectory( backupPath );
-                File.Copy( strFullPath, backupPath + Path.GetFileName( strFullPath ) );
+                if ( backupPath is null )
+                {
+                    backupPath = Path.GetDirectoryName( strFullPath ) + @"\BACKUP";
+                }
+
+                if ( !Directory.Exists( backupPath ) )
+                {
+                    Directory.CreateDirectory( backupPath );
+                }
+
+                File.Copy( strFullPath, string.Format( "{0}/{1}", backupPath, Path.GetFileName( strFullPath ) ), true );
             }
-            catch( Exception ex )
+            catch ( Exception ex )
             {
                 Debug.WriteLine( ex.ToString() );
                 return false;
@@ -219,9 +246,11 @@ namespace KBShapeSharp
                 BackupFile( strDBF );
             }
 
-            FileStream fs = new FileStream( strDBF, FileMode.CreateNew, FileAccess.Write );
+            FileStream fs = new FileStream( strDBF, FileMode.Create, FileAccess.Write );
             WriteDBFHeader( ref fs );
             WriteDBFBody( ref fs );
+
+            fs.Close();
         }
 
         private void SaveSHP( string strSHX, string strSHP, bool bBackup )
@@ -232,14 +261,18 @@ namespace KBShapeSharp
                 BackupFile( strSHX );
             }
 
-            FileStream fs = new FileStream( strSHX, FileMode.CreateNew, FileAccess.Write );
+            FileStream fs = new FileStream( strSHX, FileMode.Create, FileAccess.Write );
             WriteSHXHeader( ref fs );
             WriteSHXBody( ref fs );
+
             fs.Close();
 
-            fs = new FileStream( strSHP, FileMode.CreateNew, FileAccess.Write );
+            fs = new FileStream( strSHP, FileMode.Create, FileAccess.Write );
             WriteSHPHeader( ref fs );
+            
             WriteSHPBody( ref fs );
+
+            
             fs.Close();
 
 
@@ -251,32 +284,195 @@ namespace KBShapeSharp
 
         private void WriteDBFHeader( ref FileStream fs )
         {
-            throw new NotImplementedException();
+            BinaryWriter bw = new BinaryWriter( fs );
+
+            bw.BaseStream.Seek( 0, SeekOrigin.Begin );
+
+            bw.Write( m_DBFHeader.test1 );
+            bw.Write( m_DBFHeader.test2 );
+
+            // Write Record Length
+            bw.Write( Constants.GetByteArray( m_Shape.Count ) );
+            bw.Write( BitConverter.GetBytes( CalcHeaderLength() ) );
+            bw.Write( BitConverter.GetBytes( CalcRecordLength() ) );
+            bw.Write( new byte[ 2 ] );
+            bw.Write( Constants.BooleanToByte( m_DBFHeader.bIncompleteTransaction ) );
+            bw.Write( Constants.BooleanToByte( m_DBFHeader.bEncryption ) );
+            bw.Write( new byte[ 12 ] );
+            bw.Write( Constants.BooleanToByte( m_DBFHeader.bMDFFileExist ) );
+            bw.Write( m_DBFHeader.languageDriverID );
+            bw.Write( new byte[ 2 ] );
+
+            WriteRecordInfo( bw );
+
+            bw.Write( DBFHeaderEndCode );
         }
 
-        private void WriteDBFBody( ref FileStream fs )
+        private void WriteRecordInfo( BinaryWriter bw )
         {
-            throw new NotImplementedException();
+            for ( int idx = 0; idx < m_DBFHeader.m_FieldInfo.Length; ++idx )
+            {
+                byte[] byteArr;
+
+                // Write Field Name
+                byteArr = ASCIIEncoding.ASCII.GetBytes( m_DBFHeader.m_FieldInfo[ idx ].m_Name );
+
+                if( byteArr.Length > 11 )
+                {
+                    byteArr = byteArr.Take( 11 ).ToArray();
+                }
+
+                bw.Write( byteArr );
+
+                if( byteArr.Length < 11 )
+                {
+                    bw.Write( new byte[ 11 - byteArr.Length ] );
+                }
+
+                // Write DBF Type;
+                switch ( m_DBFHeader.m_FieldInfo[ idx ].m_FieldType )
+                {
+                // Date
+                case DBFFieldType.FTDate: //"D":
+                    bw.Write( ASCIIEncoding.ASCII.GetBytes( "D" ) );
+                    break;
+
+                // Float
+                case DBFFieldType.FTDouble: //"F":
+                    bw.Write( ASCIIEncoding.ASCII.GetBytes( "F" ) );
+                    break;
+
+                // Logical
+                case DBFFieldType.FTLogical: // "L":
+                    bw.Write( ASCIIEncoding.ASCII.GetBytes( "L" ) );
+                    break;
+
+                // Character, Memo
+                case DBFFieldType.FTString: // "C":
+                    bw.Write( ASCIIEncoding.ASCII.GetBytes( "C" ) );
+                    break;
+
+                // Numeric
+                case DBFFieldType.FTInteger: // "N":
+                    bw.Write( ASCIIEncoding.ASCII.GetBytes( "N" ) );
+                    break;
+
+                default:
+                    bw.Write( ASCIIEncoding.ASCII.GetBytes( "M" ) );
+                    break;
+
+                }
+
+                bw.Write( new byte[ 4 ] );
+
+                bw.Write( ( byte )m_DBFHeader.m_FieldInfo[ idx ].m_NWidth );
+                bw.Write( ( byte )m_DBFHeader.m_FieldInfo[ idx ].m_NDecimal );
+
+                // ??? 써본적이없다..
+                bw.Write( Constants.GetByteArray( (short)m_DBFHeader.m_FieldInfo[ idx ].nWorkAreadID ) );
+                bw.Write( m_DBFHeader.m_FieldInfo[ idx ].example );
+                bw.Write( new byte[10] );
+                bw.Write( m_DBFHeader.m_FieldInfo[ idx ].mdxFlag );
+            }
+            
         }
 
-        private void WriteSHXHeader( ref FileStream fs )
+        private bool WriteDBFBody( ref FileStream fs )
         {
-            throw new NotImplementedException();
+            BinaryWriter bw = new BinaryWriter( fs );
+
+            for ( int iRecord = 0; iRecord < m_DBFHeader.nRecords; ++iRecord )
+            {
+                KBShapeBase shapeBase = (KBShapeBase)m_Shape[ iRecord ];
+
+                // 활성화된 데이터만 쓸 것이므로, 레코드에 활성화 정보를 써준다
+                bw.Write( DBFRecordActiveCode );
+
+
+                for ( int iField = 0; iField < m_DBFHeader.m_FieldInfo.Length; ++iField )
+                {
+                    int nWidth = m_DBFHeader.m_FieldInfo[ iField ].m_NWidth;
+
+                    object data = shapeBase.m_Attribute[ iField ].DBFReadAttribute();
+                    if ( nWidth < shapeBase.m_Attribute[ iField ].Data.Length  )
+                    {
+                        bw.Write( shapeBase.m_Attribute[ iField ].Data.Take( nWidth ).ToArray() );
+                    }
+                    else
+                    {
+                        bw.Write( shapeBase.m_Attribute[ iField ].Data.Take( nWidth ).ToArray() );
+                    }
+
+                    // 짧을 경우 : ASCII기준 공백값인 20으로 빈칸을 채워준다. 
+                    if ( nWidth > shapeBase.m_Attribute[ iField ].Data.Length )
+                    {
+                        byte[] emptyData = new byte[nWidth - shapeBase.m_Attribute[ iField ].Data.Length];
+
+                        for( int idx = 0; idx < emptyData.Length; ++idx )
+                        {
+                            emptyData[idx] = DBFRecordActiveCode;
+                        }
+
+                        bw.Write( emptyData );
+                    }
+
+                    Debug.WriteLine( "iRecord : {0}, iField : {1}, Width : {3}, Data : {2}", iRecord, iField, shapeBase.m_Attribute[ iField ].DBFReadAttribute(), nWidth );
+                }
+
+            }
+
+           bw.Write( DBFEndOfFile );
+
+            return true;
         }
 
-        private void WriteSHXBody( ref FileStream fs )
+        private short CalcRecordLength()
         {
-            throw new NotImplementedException();
+            short recLength = 0;
+
+            for ( int idx = 0; idx < m_DBFHeader.m_FieldInfo.Length; ++idx )
+            {
+                recLength += ( short )m_DBFHeader.m_FieldInfo[ idx ].m_NWidth;
+            }
+
+            recLength += 1;
+
+            return recLength;
         }
 
-        private void WriteSHPHeader( ref FileStream fs )
+        private short CalcHeaderLength()
         {
-            throw new NotImplementedException();
+            return ( short )( ( m_DBFHeader.m_FieldInfo.Length + 1 ) * 32 + 1 );
         }
 
-        private void WriteSHPBody( ref FileStream fs )
+        private bool WriteSHXHeader( ref FileStream fs )
         {
-            throw new NotImplementedException();
+            //             try
+            //             {
+            //                 
+            //             }
+            //             catch ( Exception ex )
+            //             {
+            //                 Debug.WriteLine( ex.ToString() );
+            //                 return false;
+            //             }
+
+            return true;
+        }
+
+        private bool WriteSHXBody( ref FileStream fs )
+        {
+            return true;
+        }
+
+        private bool WriteSHPHeader( ref FileStream fs )
+        {
+            return true;
+        }
+
+        private bool WriteSHPBody( ref FileStream fs )
+        {
+            return true;
         }
 
         #endregion
@@ -298,8 +494,7 @@ namespace KBShapeSharp
                 m_DBFHeader = new DBFHeaderInfo();
 
                 // ???
-                m_DBFHeader.test1 = new byte[ 1 ];
-                m_DBFHeader.test1[ 0 ] = byteBuffer[ 0 ];
+                m_DBFHeader.test1 = byteBuffer[ 0 ];
 
                 // Date of last update
                 m_DBFHeader.test2 = new byte[ 3 ];
@@ -389,9 +584,9 @@ namespace KBShapeSharp
                     Debug.WriteLine( "m_FieldType : {1}", idx, dfi.m_FieldType );
 #endif
                     // ??? 써본적이없다..
-                    int nWorkAreadID = BitConverter.ToInt16( byteBuffer, iOffset + 18 );
-                    byte example = byteBuffer[ iOffset + 20];
-                    byte mdxFlag = byteBuffer[ iOffset + 31];
+                    dfi.nWorkAreadID = BitConverter.ToInt16( byteBuffer, iOffset + 18 );
+                    dfi.example = byteBuffer[ iOffset + 20];
+                    dfi.mdxFlag = byteBuffer[ iOffset + 31];
 
                     m_DBFHeader.m_FieldInfo[ idx ] = dfi;
 
@@ -416,7 +611,7 @@ namespace KBShapeSharp
         {
             try
             {
-                br.BaseStream.Seek( m_DBFHeader.nHeaderLength + 1, SeekOrigin.Begin );
+                br.BaseStream.Seek( m_DBFHeader.nHeaderLength, SeekOrigin.Begin );
 
                 if ( null == m_Shape )
                 {
@@ -429,7 +624,12 @@ namespace KBShapeSharp
                 {
                     byte[] byteBuffer = br.ReadBytes( m_DBFHeader.nRecordLength );
 
+
                     int iOffset = 0;
+                    // 삭제 Flag 확인. 난 필요없음.
+                    byte bActiveFlag = byteBuffer.Take(1).ToArray()[0];
+                    iOffset++;
+
                     dbfAttr = new DBFAttribute[ m_DBFHeader.nFields ];
 
                     for ( int iField = 0; iField < m_DBFHeader.nFields; ++iField )
@@ -440,7 +640,7 @@ namespace KBShapeSharp
                         iOffset += nWidth;
 
 #if DEBUG
-                        Debug.WriteLine( "iRecord : {0}, iField : {1}, Data : {2}", iRecord, iField, dbfAttr[ iField ].DBFReadAttribute() );
+                        Debug.WriteLine( "iRecord : {0}, iField : {1}, Width : {3}, Data : {2}", iRecord, iField, dbfAttr[ iField ].DBFReadAttribute(), nWidth );
 #endif
                     }
 

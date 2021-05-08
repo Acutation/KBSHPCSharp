@@ -16,5 +16,6 @@ namespace KBShapeSharp.Shape
         /////<summary>Number of parts (0 implies single part with no info)</summary>	
         public int m_NumParts;
         public DBFAttribute [] m_Attribute;
+        public List<KBPoint> m_Points;
     }
 }

@@ -20,7 +20,7 @@ namespace KBShapeSharp.Shape
             z = 0.0;
         }
 
-        public KBPoint(double x, double y, double z)
+        public KBPoint( double x, double y, double z )
         {
             this.x = x;
             this.y = y;
@@ -34,6 +34,4 @@ namespace KBShapeSharp.Shape
             z = 0.0;
         }
     }
-
-    
 }

@@ -12,6 +12,11 @@ namespace KBShapeSharp.Struct
         public int m_NWidth;
         public int m_NDecimal;
 
+        // 써본적이 없지만 적혀있는 것들
+        public int nWorkAreadID;
+        public byte example;
+        public byte mdxFlag;
+
         public DBFFieldInfo()
         {
             m_Name = null;

@@ -8,7 +8,7 @@ namespace KBShapeSharp.Struct
 {
     public class DBFHeaderInfo
     {
-        public byte[] test1;
+        public byte test1;
         public byte[] test2;
         public int nRecords;
         public int nFields;

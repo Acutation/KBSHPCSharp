@@ -9,9 +9,8 @@ using KBShapeSharp.Type;
 namespace KBShapeSharp.Shape
 {
 
-    public class KBMultiPoints : KBShapeBase
+    public class KBMultiPoints : KBShapeBase    
     {
-        public List<KBPoint> m_Points;
         public KBRect m_MBB = new KBRect();
         public int m_NumPoints;
 

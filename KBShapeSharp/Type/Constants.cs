@@ -30,5 +30,41 @@ namespace KBShapeSharp.Type
 
             return returnValue;
         }
+
+        public static byte[] GetByteArray( int intValue )
+        {
+            byte[] intBytes = BitConverter.GetBytes(intValue);
+
+            if ( !BitConverter.IsLittleEndian )
+            {
+                Array.Reverse( intBytes );
+            }
+
+            return intBytes;
+        }
+
+        public static byte[] GetByteArray( short intValue )
+        {
+            byte[] intBytes = BitConverter.GetBytes(intValue);
+
+            if ( BitConverter.IsLittleEndian )
+            {
+                Array.Reverse( intBytes );
+            }
+
+            return intBytes;
+        }
+
+        public static byte BooleanToByte( bool bValue )
+        {
+            if ( bValue )
+            {
+                return 1;
+            }
+            else
+            {
+                return 0;
+            }
+        }
     }
 }
